@@ -87,6 +87,7 @@ if uploaded_file:
     }
 
     df_filtered["ROM"] = df_filtered["RegionName"].map(rom_map)
+    df_filtered["MFO"] = 0
 
     kolom_output = [
         "LogNo","CustomerTicketNo","SiteID","SiteName","ResidenceName",
@@ -191,3 +192,4 @@ if uploaded_file:
         file_name=filename
 
     )
+
