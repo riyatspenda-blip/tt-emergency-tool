@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import io
+import pytz
 
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -177,7 +178,8 @@ if uploaded_file:
         "Juli","Agustus","September","Oktober","November","Desember"
     ]
 
-    now_download = datetime.now()
+    tz = pytz.timezone("Asia/Jakarta")
+    now_download = datetime.now(tz)
 
     tanggal = f"{now_download.day:02d} {bulan[now_download.month-1]} {now_download.year} {now_download.hour:02d}.{now_download.minute:02d}"
 
@@ -187,4 +189,5 @@ if uploaded_file:
         "Download Excel Report",
         styled_output.getvalue(),
         file_name=filename
+
     )
