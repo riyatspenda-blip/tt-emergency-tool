@@ -28,18 +28,20 @@ if uploaded_file:
     # HITUNG DURATION DARI OPENDATE
     # =========================
 
-    tz = pytz.timezone("Asia/Jakarta")
-    now = datetime.now(tz)
+    now = datetime.now()
 
     df_filtered["OpenDate"] = pd.to_datetime(
         df_filtered["OpenDate"], errors="coerce"
     )
 
+    # hapus data yang OpenDate tidak valid
+    df_filtered = df_filtered.dropna(subset=["OpenDate"])
+
     delta = now - df_filtered["OpenDate"]
 
     df_filtered["durasi menit"] = (
         delta.dt.total_seconds() / 60
-    ).fillna(0).astype(int)
+    ).astype(int)
 
     df_filtered["Duration"] = pd.to_timedelta(
         delta.dt.total_seconds(), unit="s"
@@ -58,13 +60,13 @@ if uploaded_file:
     def cek_sla(row):
 
         menit = row["durasi menit"]
-        case = row["CaseName"]
+        case = str(row["CaseName"]).lower()
 
-        if case == "Emergency" and menit <= 240:
+        if case == "emergency" and menit <= 240:
             return "IN SLA"
-        elif case == "Major" and menit <= 1440:
+        elif case == "major" and menit <= 1440:
             return "IN SLA"
-        elif case == "Minor" and menit <= 7200:
+        elif case == "minor" and menit <= 7200:
             return "IN SLA"
         else:
             return "OUT SLA"
@@ -108,7 +110,7 @@ if uploaded_file:
     df_filtered["ROM"] = df_filtered["RegionName"].map(rom_map)
 
     # =========================
-    # MFO OTOMATIS 0
+    # MFO OTOMATIS
     # =========================
 
     df_filtered["MFO"] = 0
@@ -210,7 +212,7 @@ if uploaded_file:
     wb.save(styled_output)
 
     # =========================
-    # NAMA FILE
+    # NAMA FILE DOWNLOAD
     # =========================
 
     bulan = [
@@ -218,7 +220,7 @@ if uploaded_file:
         "Juli","Agustus","September","Oktober","November","Desember"
     ]
 
-    now_download = datetime.now(tz)
+    now_download = datetime.now()
 
     tanggal = f"{now_download.day:02d} {bulan[now_download.month-1]} {now_download.year} {now_download.hour:02d}.{now_download.minute:02d}"
 
