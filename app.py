@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -7,7 +8,6 @@ import pytz
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-
 
 st.title("TT Emergency Automation Tool")
 
@@ -25,24 +25,36 @@ if uploaded_file:
         (df["ResolvedTimeOperator"].isna())
     ].copy()
 
-    now = datetime.now()
+    # =========================
+    # HITUNG DURATION DARI OPENDATE
+    # =========================
 
-    df_filtered["StartTimeOperator"] = pd.to_datetime(
-        df_filtered["StartTimeOperator"], errors="coerce"
+    tz = pytz.timezone("Asia/Jakarta")
+    now = datetime.now(tz)
+
+    df_filtered["OpenDate"] = pd.to_datetime(
+        df_filtered["OpenDate"], errors="coerce"
     )
 
-    delta = now - df_filtered["StartTimeOperator"]
+    delta = now - df_filtered["OpenDate"]
 
     df_filtered["durasi menit"] = (
         delta.dt.total_seconds() / 60
     ).fillna(0).astype(int)
 
-    df_filtered["Duration"] = delta.apply(
-        lambda x: f"{int(x.total_seconds()//3600):02d}:{int((x.total_seconds()%3600)//60):02d}"
-        if pd.notnull(x) else "00:00"
+    df_filtered["Duration"] = pd.to_timedelta(
+        delta.dt.total_seconds(), unit="s"
     )
 
+    # =========================
+    # UPDATE TERAKHIR
+    # =========================
+
     df_filtered["Update"] = df_filtered.get("LatestCIR", "")
+
+    # =========================
+    # CEK SLA
+    # =========================
 
     def cek_sla(row):
 
@@ -60,6 +72,10 @@ if uploaded_file:
 
     df_filtered["Ach. SLA Internal"] = df_filtered.apply(cek_sla, axis=1)
 
+    # =========================
+    # REMARK DURASI
+    # =========================
+
     def remark(menit):
 
         if menit < 240:
@@ -70,6 +86,10 @@ if uploaded_file:
             return ">8 jam"
 
     df_filtered["Remark durasi"] = df_filtered["durasi menit"].apply(remark)
+
+    # =========================
+    # MAPPING ROM
+    # =========================
 
     rom_map = {
         "SULAWESI":"Abdul Karim",
@@ -87,7 +107,16 @@ if uploaded_file:
     }
 
     df_filtered["ROM"] = df_filtered["RegionName"].map(rom_map)
+
+    # =========================
+    # MFO OTOMATIS 0
+    # =========================
+
     df_filtered["MFO"] = 0
+
+    # =========================
+    # KOLOM OUTPUT
+    # =========================
 
     kolom_output = [
         "LogNo","CustomerTicketNo","SiteID","SiteName","ResidenceName",
@@ -136,6 +165,10 @@ if uploaded_file:
         for cell in row:
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
+    # =========================
+    # AUTO WIDTH KOLOM
+    # =========================
+
     for column in ws.columns:
 
         max_length = 0
@@ -167,11 +200,18 @@ if uploaded_file:
         for cell in row:
             cell.border = border
 
+    # =========================
+    # FORMAT KOLOM DURATION
+    # =========================
+
+    for row in range(2, ws.max_row + 1):
+        ws[f"O{row}"].number_format = "[h]:mm:ss"
+
     styled_output = io.BytesIO()
     wb.save(styled_output)
 
     # =========================
-    # NAMA FILE SESUAI FORMAT LAMA
+    # NAMA FILE
     # =========================
 
     bulan = [
@@ -179,7 +219,6 @@ if uploaded_file:
         "Juli","Agustus","September","Oktober","November","Desember"
     ]
 
-    tz = pytz.timezone("Asia/Jakarta")
     now_download = datetime.now(tz)
 
     tanggal = f"{now_download.day:02d} {bulan[now_download.month-1]} {now_download.year} {now_download.hour:02d}.{now_download.minute:02d}"
@@ -190,6 +229,5 @@ if uploaded_file:
         "Download Excel Report",
         styled_output.getvalue(),
         file_name=filename
-
     )
-
+```
