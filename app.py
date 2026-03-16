@@ -229,4 +229,3 @@ if uploaded_file:
         styled_output.getvalue(),
         file_name=filename
     )
-```
