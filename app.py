@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from zoneinfo import ZoneInfo
 import io
 
 from openpyxl import load_workbook
@@ -25,21 +24,33 @@ if uploaded_file:
     ].copy()
 
     # =========================
-    # WAKTU SEKARANG (WIB)
+    # WAKTU SEKARANG (FIX NO ERROR)
     # =========================
-    now = datetime.now(ZoneInfo("Asia/Jakarta"))
+    now = datetime.now()  # ❗ TANPA timezone biar tidak error
 
+    # =========================
+    # FIX OPEN DATE (ANTI ERROR)
+    # =========================
     df_filtered["OpenDate"] = pd.to_datetime(
         df_filtered["OpenDate"], errors="coerce"
     )
 
+    # hilangkan timezone jika ada
+    try:
+        df_filtered["OpenDate"] = df_filtered["OpenDate"].dt.tz_localize(None)
+    except:
+        pass
+
     df_filtered = df_filtered.dropna(subset=["OpenDate"])
 
+    # =========================
+    # HITUNG DURASI
+    # =========================
     delta = now - df_filtered["OpenDate"]
 
     df_filtered["durasi menit"] = (
         delta.dt.total_seconds() / 60
-    ).astype(int)
+    ).fillna(0).astype(int)
 
     df_filtered["Duration"] = pd.to_timedelta(
         delta.dt.total_seconds(), unit="s"
@@ -196,14 +207,14 @@ if uploaded_file:
     wb.save(styled_output)
 
     # =========================
-    # NAMA FILE DOWNLOAD (WIB)
+    # NAMA FILE DOWNLOAD (FIX)
     # =========================
     bulan = [
         "Januari","Februari","Maret","April","Mei","Juni",
         "Juli","Agustus","September","Oktober","November","Desember"
     ]
 
-    now_download = datetime.now(ZoneInfo("Asia/Jakarta"))
+    now_download = datetime.now()
 
     tanggal = f"{now_download.day:02d} {bulan[now_download.month-1]} {now_download.year} {now_download.hour:02d}.{now_download.minute:02d}"
 
