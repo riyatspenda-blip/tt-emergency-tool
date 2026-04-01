@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import io
-import pytz 
 
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -25,16 +25,14 @@ if uploaded_file:
     ].copy()
 
     # =========================
-    # HITUNG DURATION DARI OPENDATE
+    # WAKTU SEKARANG (WIB)
     # =========================
-
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Asia/Jakarta"))
 
     df_filtered["OpenDate"] = pd.to_datetime(
         df_filtered["OpenDate"], errors="coerce"
     )
 
-    # hapus data yang OpenDate tidak valid
     df_filtered = df_filtered.dropna(subset=["OpenDate"])
 
     delta = now - df_filtered["OpenDate"]
@@ -50,13 +48,11 @@ if uploaded_file:
     # =========================
     # UPDATE TERAKHIR
     # =========================
-
     df_filtered["Update"] = df_filtered.get("LatestCIR", "")
 
     # =========================
     # CEK SLA
     # =========================
-
     def cek_sla(row):
 
         menit = row["durasi menit"]
@@ -76,7 +72,6 @@ if uploaded_file:
     # =========================
     # REMARK DURASI
     # =========================
-
     def remark(menit):
 
         if menit < 240:
@@ -91,7 +86,6 @@ if uploaded_file:
     # =========================
     # MAPPING ROM
     # =========================
-
     rom_map = {
         "SULAWESI":"Abdul Karim",
         "SUMBAGSEL":"Eki Oktavian",
@@ -112,13 +106,11 @@ if uploaded_file:
     # =========================
     # MFO OTOMATIS
     # =========================
-
     df_filtered["MFO"] = 0
 
     # =========================
     # KOLOM OUTPUT
     # =========================
-
     kolom_output = [
         "LogNo","CustomerTicketNo","SiteID","SiteName","ResidenceName",
         "CaseName","CaseDescription","OpenDate","SeverityName",
@@ -139,7 +131,6 @@ if uploaded_file:
     # =========================
     # EXPORT EXCEL
     # =========================
-
     output = io.BytesIO()
     df_output.to_excel(output, index=False)
     output.seek(0)
@@ -153,7 +144,6 @@ if uploaded_file:
     header_font = Font(color="FFFFFF", bold=True)
 
     for col_num, cell in enumerate(ws[1], start=1):
-
         if col_num >= 15:
             cell.fill = red_header
         else:
@@ -166,10 +156,7 @@ if uploaded_file:
         for cell in row:
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    # =========================
-    # AUTO WIDTH KOLOM
-    # =========================
-
+    # AUTO WIDTH
     for column in ws.columns:
 
         max_length = 0
@@ -201,10 +188,7 @@ if uploaded_file:
         for cell in row:
             cell.border = border
 
-    # =========================
-    # FORMAT KOLOM DURATION
-    # =========================
-
+    # FORMAT DURATION
     for row in range(2, ws.max_row + 1):
         ws[f"O{row}"].number_format = "[h]:mm:ss"
 
@@ -212,16 +196,14 @@ if uploaded_file:
     wb.save(styled_output)
 
     # =========================
-    # NAMA FILE DOWNLOAD
+    # NAMA FILE DOWNLOAD (WIB)
     # =========================
-
     bulan = [
         "Januari","Februari","Maret","April","Mei","Juni",
         "Juli","Agustus","September","Oktober","November","Desember"
     ]
 
-    tz = pytz.timezone("Asia/Jakarta")
-    now_download = datetime.now(tz)
+    now_download = datetime.now(ZoneInfo("Asia/Jakarta"))
 
     tanggal = f"{now_download.day:02d} {bulan[now_download.month-1]} {now_download.year} {now_download.hour:02d}.{now_download.minute:02d}"
 
