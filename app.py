@@ -16,212 +16,232 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file:
 
-    df = pd.read_excel(uploaded_file, sheet_name="Trouble Ticket Update")
-
-    df_filtered = df[
-        (df["CaseGroupName"] == "MMP/Intersite/Backhaul") &
-        (df["ResolvedTimeOperator"].isna())
-    ].copy()
-
-    # =========================
-    # WAKTU SEKARANG (FIX NO ERROR)
-    # =========================
-    now = datetime.now()  # ❗ TANPA timezone biar tidak error
-
-    # =========================
-    # FIX OPEN DATE (ANTI ERROR)
-    # =========================
-    df_filtered["OpenDate"] = pd.to_datetime(
-        df_filtered["OpenDate"], errors="coerce"
-    )
-
-    # hilangkan timezone jika ada
     try:
-        df_filtered["OpenDate"] = df_filtered["OpenDate"].dt.tz_localize(None)
-    except:
-        pass
+        # =========================
+        # READ FILE (AUTO SHEET)
+        # =========================
+        df = pd.read_excel(uploaded_file)
 
-    df_filtered = df_filtered.dropna(subset=["OpenDate"])
+        st.write("📌 Kolom terdeteksi:", df.columns.tolist())
 
-    # =========================
-    # HITUNG DURASI
-    # =========================
-    delta = now - df_filtered["OpenDate"]
+        # =========================
+        # VALIDASI KOLOM WAJIB
+        # =========================
+        required_columns = [
+            "CaseGroupName",
+            "ResolvedTimeOperator",
+            "OpenDate",
+            "CaseName",
+            "RegionName"
+        ]
 
-    df_filtered["durasi menit"] = (
-        delta.dt.total_seconds() / 60
-    ).fillna(0).astype(int)
+        missing_cols = [col for col in required_columns if col not in df.columns]
 
-    df_filtered["Duration"] = pd.to_timedelta(
-        delta.dt.total_seconds(), unit="s"
-    )
+        if missing_cols:
+            st.error(f"❌ Kolom tidak ditemukan: {missing_cols}")
+            st.stop()
 
-    # =========================
-    # UPDATE TERAKHIR
-    # =========================
-    df_filtered["Update"] = df_filtered.get("LatestCIR", "")
+        # =========================
+        # FILTER DATA
+        # =========================
+        df_filtered = df[
+            (df["CaseGroupName"] == "MMP/Intersite/Backhaul") &
+            (df["ResolvedTimeOperator"].isna())
+        ].copy()
 
-    # =========================
-    # CEK SLA
-    # =========================
-    def cek_sla(row):
+        # =========================
+        # WAKTU SEKARANG
+        # =========================
+        now = datetime.now()
 
-        menit = row["durasi menit"]
-        case = str(row["CaseName"]).lower()
+        # =========================
+        # FIX OPEN DATE
+        # =========================
+        df_filtered["OpenDate"] = pd.to_datetime(
+            df_filtered["OpenDate"], errors="coerce"
+        )
 
-        if case == "emergency" and menit <= 240:
-            return "IN SLA"
-        elif case == "major" and menit <= 1440:
-            return "IN SLA"
-        elif case == "minor" and menit <= 7200:
-            return "IN SLA"
+        df_filtered = df_filtered.dropna(subset=["OpenDate"])
+
+        # =========================
+        # HITUNG DURASI
+        # =========================
+        delta = now - df_filtered["OpenDate"]
+
+        df_filtered["durasi menit"] = (
+            delta.dt.total_seconds() / 60
+        ).fillna(0).astype(int)
+
+        df_filtered["Duration"] = pd.to_timedelta(
+            delta.dt.total_seconds(), unit="s"
+        )
+
+        # =========================
+        # UPDATE TERAKHIR
+        # =========================
+        if "LatestCIR" in df_filtered.columns:
+            df_filtered["Update"] = df_filtered["LatestCIR"]
         else:
-            return "OUT SLA"
+            df_filtered["Update"] = ""
 
-    df_filtered["Ach. SLA Internal"] = df_filtered.apply(cek_sla, axis=1)
+        # =========================
+        # CEK SLA
+        # =========================
+        def cek_sla(row):
+            menit = row["durasi menit"]
+            case = str(row["CaseName"]).lower()
 
-    # =========================
-    # REMARK DURASI
-    # =========================
-    def remark(menit):
+            if case == "emergency" and menit <= 240:
+                return "IN SLA"
+            elif case == "major" and menit <= 1440:
+                return "IN SLA"
+            elif case == "minor" and menit <= 7200:
+                return "IN SLA"
+            else:
+                return "OUT SLA"
 
-        if menit < 240:
-            return "<4 jam"
-        elif menit <= 480:
-            return "4-8 jam"
-        else:
-            return ">8 jam"
+        df_filtered["Ach. SLA Internal"] = df_filtered.apply(cek_sla, axis=1)
 
-    df_filtered["Remark durasi"] = df_filtered["durasi menit"].apply(remark)
+        # =========================
+        # REMARK DURASI
+        # =========================
+        def remark(menit):
+            if menit < 240:
+                return "<4 jam"
+            elif menit <= 480:
+                return "4-8 jam"
+            else:
+                return ">8 jam"
 
-    # =========================
-    # MAPPING ROM
-    # =========================
-    rom_map = {
-        "SULAWESI":"Abdul Karim",
-        "SUMBAGSEL":"Eki Oktavian",
-        "SUMBAGUT":"Charles Victor Steven Taneo",
-        "KALIMANTAN":"Andri Potabuga",
-        "JATIM":"Darwin",
-        "BALINUSRA":"Anandayu Ega Hardianto",
-        "JATENG":"Tri Pambudi",
-        "JABAR":"Nonot Arief Herdianto",
-        "SUMBAGTENG":"HARTONO",
-        "JABODETABEK (OUTER)":"HENRO",
-        "JABODETABEK (INNER)":"Chandra Novyan Nurfahmi",
-        "LAMPUNG":"Fanel Situmorang Victor"
-    }
+        df_filtered["Remark durasi"] = df_filtered["durasi menit"].apply(remark)
 
-    df_filtered["ROM"] = df_filtered["RegionName"].map(rom_map)
+        # =========================
+        # MAPPING ROM
+        # =========================
+        rom_map = {
+            "SULAWESI":"Abdul Karim",
+            "SUMBAGSEL":"Eki Oktavian",
+            "SUMBAGUT":"Charles Victor Steven Taneo",
+            "KALIMANTAN":"Andri Potabuga",
+            "JATIM":"Darwin",
+            "BALINUSRA":"Anandayu Ega Hardianto",
+            "JATENG":"Tri Pambudi",
+            "JABAR":"Nonot Arief Herdianto",
+            "SUMBAGTENG":"HARTONO",
+            "JABODETABEK (OUTER)":"HENRO",
+            "JABODETABEK (INNER)":"Chandra Novyan Nurfahmi",
+            "LAMPUNG":"Fanel Situmorang Victor"
+        }
 
-    # =========================
-    # MFO OTOMATIS
-    # =========================
-    df_filtered["MFO"] = 0
+        df_filtered["ROM"] = df_filtered["RegionName"].map(rom_map)
 
-    # =========================
-    # KOLOM OUTPUT
-    # =========================
-    kolom_output = [
-        "LogNo","CustomerTicketNo","SiteID","SiteName","ResidenceName",
-        "CaseName","CaseDescription","OpenDate","SeverityName",
-        "OperatorGroup","RegionName","VendorName","SPVOME","MFO",
-        "Duration","durasi menit","Ach. SLA Internal","Update",
-        "Remark durasi","ROM"
-    ]
+        # =========================
+        # MFO
+        # =========================
+        df_filtered["MFO"] = 0
 
-    for col in kolom_output:
-        if col not in df_filtered.columns:
-            df_filtered[col] = ""
+        # =========================
+        # KOLOM OUTPUT
+        # =========================
+        kolom_output = [
+            "LogNo","CustomerTicketNo","SiteID","SiteName","ResidenceName",
+            "CaseName","CaseDescription","OpenDate","SeverityName",
+            "OperatorGroup","RegionName","VendorName","SPVOME","MFO",
+            "Duration","durasi menit","Ach. SLA Internal","Update",
+            "Remark durasi","ROM"
+        ]
 
-    df_output = df_filtered[kolom_output]
+        for col in kolom_output:
+            if col not in df_filtered.columns:
+                df_filtered[col] = ""
 
-    st.success("Data berhasil diproses")
-    st.dataframe(df_output)
+        df_output = df_filtered[kolom_output]
 
-    # =========================
-    # EXPORT EXCEL
-    # =========================
-    output = io.BytesIO()
-    df_output.to_excel(output, index=False)
-    output.seek(0)
+        st.success("✅ Data berhasil diproses")
+        st.dataframe(df_output)
 
-    wb = load_workbook(output)
-    ws = wb.active
+        # =========================
+        # EXPORT EXCEL
+        # =========================
+        output = io.BytesIO()
+        df_output.to_excel(output, index=False)
+        output.seek(0)
 
-    blue_header = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-    red_header = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+        wb = load_workbook(output)
+        ws = wb.active
 
-    header_font = Font(color="FFFFFF", bold=True)
+        blue_header = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        red_header = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
 
-    for col_num, cell in enumerate(ws[1], start=1):
-        if col_num >= 15:
-            cell.fill = red_header
-        else:
-            cell.fill = blue_header
+        header_font = Font(color="FFFFFF", bold=True)
 
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for col_num, cell in enumerate(ws[1], start=1):
+            if col_num >= 15:
+                cell.fill = red_header
+            else:
+                cell.fill = blue_header
 
-    for row in ws.iter_rows(min_row=2):
-        for cell in row:
+            cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    # AUTO WIDTH
-    for column in ws.columns:
+        for row in ws.iter_rows(min_row=2):
+            for cell in row:
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-        max_length = 0
-        column_letter = get_column_letter(column[0].column)
+        # AUTO WIDTH
+        for column in ws.columns:
+            max_length = 0
+            column_letter = get_column_letter(column[0].column)
 
-        for cell in column:
-            try:
-                if cell.value:
-                    max_length = max(max_length, len(str(cell.value)))
-            except:
-                pass
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
 
-        width = max_length + 3
+            width = min(max_length + 3, 40)
 
-        if column_letter in ["G","R"]:
-            width = 40
+            if column_letter in ["G","R"]:
+                width = 40
 
-        if width > 40:
-            width = 40
+            ws.column_dimensions[column_letter].width = width
 
-        ws.column_dimensions[column_letter].width = width
+        ws.auto_filter.ref = ws.dimensions
 
-    ws.auto_filter.ref = ws.dimensions
+        thin = Side(style="thin")
+        border = Border(left=thin,right=thin,top=thin,bottom=thin)
 
-    thin = Side(style="thin")
-    border = Border(left=thin,right=thin,top=thin,bottom=thin)
+        for row in ws.iter_rows():
+            for cell in row:
+                cell.border = border
 
-    for row in ws.iter_rows():
-        for cell in row:
-            cell.border = border
+        # FORMAT DURATION
+        for row in range(2, ws.max_row + 1):
+            ws[f"O{row}"].number_format = "[h]:mm:ss"
 
-    # FORMAT DURATION
-    for row in range(2, ws.max_row + 1):
-        ws[f"O{row}"].number_format = "[h]:mm:ss"
+        styled_output = io.BytesIO()
+        wb.save(styled_output)
 
-    styled_output = io.BytesIO()
-    wb.save(styled_output)
+        # =========================
+        # NAMA FILE DOWNLOAD
+        # =========================
+        bulan = [
+            "Januari","Februari","Maret","April","Mei","Juni",
+            "Juli","Agustus","September","Oktober","November","Desember"
+        ]
 
-    # =========================
-    # NAMA FILE DOWNLOAD (FIX)
-    # =========================
-    bulan = [
-        "Januari","Februari","Maret","April","Mei","Juni",
-        "Juli","Agustus","September","Oktober","November","Desember"
-    ]
+        now_download = datetime.now()
 
-    now_download = datetime.now()
+        tanggal = f"{now_download.day:02d} {bulan[now_download.month-1]} {now_download.year} {now_download.hour:02d}.{now_download.minute:02d}"
 
-    tanggal = f"{now_download.day:02d} {bulan[now_download.month-1]} {now_download.year} {now_download.hour:02d}.{now_download.minute:02d}"
+        filename = f"Trouble Ticket Emergency {tanggal}.xlsx"
 
-    filename = f"Trouble Ticket Emergency {tanggal}.xlsx"
+        st.download_button(
+            "📥 Download Excel Report",
+            styled_output.getvalue(),
+            file_name=filename
+        )
 
-    st.download_button(
-        "Download Excel Report",
-        styled_output.getvalue(),
-        file_name=filename
-    )
+    except Exception as e:
+        st.error(f"❌ Terjadi error: {e}")
