@@ -11,7 +11,7 @@ st.title("TT Emergency Automation Tool")
 
 uploaded_file = st.file_uploader(
     "Upload Excel Trouble Ticket",
-    type=["xlsx"]
+    type=["xlsx", "xls"]
 )
 
 if uploaded_file:
@@ -22,7 +22,8 @@ if uploaded_file:
         # =========================
         df = pd.read_excel(uploaded_file)
 
-        st.write("📌 Kolom terdeteksi:", df.columns.tolist())
+        # DEBUG (optional)
+        # st.write(df.columns.tolist())
 
         # =========================
         # VALIDASI KOLOM WAJIB
@@ -49,23 +50,21 @@ if uploaded_file:
             (df["ResolvedTimeOperator"].isna())
         ].copy()
 
+        if df_filtered.empty:
+            st.warning("⚠️ Tidak ada data yang sesuai filter")
+            st.stop()
+
         # =========================
-        # WAKTU SEKARANG
+        # FORMAT WAKTU
         # =========================
         now = datetime.now()
 
-        # =========================
-        # FIX OPEN DATE
-        # =========================
         df_filtered["OpenDate"] = pd.to_datetime(
             df_filtered["OpenDate"], errors="coerce"
         )
 
         df_filtered = df_filtered.dropna(subset=["OpenDate"])
 
-        # =========================
-        # HITUNG DURASI
-        # =========================
         delta = now - df_filtered["OpenDate"]
 
         df_filtered["durasi menit"] = (
@@ -77,15 +76,12 @@ if uploaded_file:
         )
 
         # =========================
-        # UPDATE TERAKHIR
+        # UPDATE
         # =========================
-        if "LatestCIR" in df_filtered.columns:
-            df_filtered["Update"] = df_filtered["LatestCIR"]
-        else:
-            df_filtered["Update"] = ""
+        df_filtered["Update"] = df_filtered.get("LatestCIR", "")
 
         # =========================
-        # CEK SLA
+        # SLA
         # =========================
         def cek_sla(row):
             menit = row["durasi menit"]
@@ -103,7 +99,7 @@ if uploaded_file:
         df_filtered["Ach. SLA Internal"] = df_filtered.apply(cek_sla, axis=1)
 
         # =========================
-        # REMARK DURASI
+        # REMARK
         # =========================
         def remark(menit):
             if menit < 240:
@@ -116,7 +112,7 @@ if uploaded_file:
         df_filtered["Remark durasi"] = df_filtered["durasi menit"].apply(remark)
 
         # =========================
-        # MAPPING ROM
+        # ROM
         # =========================
         rom_map = {
             "SULAWESI":"Abdul Karim",
@@ -170,18 +166,13 @@ if uploaded_file:
         wb = load_workbook(output)
         ws = wb.active
 
-        blue_header = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-        red_header = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-
-        header_font = Font(color="FFFFFF", bold=True)
+        blue = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        red = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+        font = Font(color="FFFFFF", bold=True)
 
         for col_num, cell in enumerate(ws[1], start=1):
-            if col_num >= 15:
-                cell.fill = red_header
-            else:
-                cell.fill = blue_header
-
-            cell.font = header_font
+            cell.fill = red if col_num >= 15 else blue
+            cell.font = font
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
         for row in ws.iter_rows(min_row=2):
@@ -191,7 +182,7 @@ if uploaded_file:
         # AUTO WIDTH
         for column in ws.columns:
             max_length = 0
-            column_letter = get_column_letter(column[0].column)
+            col_letter = get_column_letter(column[0].column)
 
             for cell in column:
                 try:
@@ -200,17 +191,12 @@ if uploaded_file:
                 except:
                     pass
 
-            width = min(max_length + 3, 40)
-
-            if column_letter in ["G","R"]:
-                width = 40
-
-            ws.column_dimensions[column_letter].width = width
+            ws.column_dimensions[col_letter].width = min(max_length + 3, 40)
 
         ws.auto_filter.ref = ws.dimensions
 
         thin = Side(style="thin")
-        border = Border(left=thin,right=thin,top=thin,bottom=thin)
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
         for row in ws.iter_rows():
             for cell in row:
@@ -224,21 +210,20 @@ if uploaded_file:
         wb.save(styled_output)
 
         # =========================
-        # NAMA FILE DOWNLOAD
+        # NAMA FILE
         # =========================
         bulan = [
             "Januari","Februari","Maret","April","Mei","Juni",
             "Juli","Agustus","September","Oktober","November","Desember"
         ]
 
-        now_download = datetime.now()
-
-        tanggal = f"{now_download.day:02d} {bulan[now_download.month-1]} {now_download.year} {now_download.hour:02d}.{now_download.minute:02d}"
+        now_dl = datetime.now()
+        tanggal = f"{now_dl.day:02d} {bulan[now_dl.month-1]} {now_dl.year} {now_dl.hour:02d}.{now_dl.minute:02d}"
 
         filename = f"Trouble Ticket Emergency {tanggal}.xlsx"
 
         st.download_button(
-            "📥 Download Excel Report",
+            "⬇️ Download Excel Report",
             styled_output.getvalue(),
             file_name=filename
         )
